@@ -55,3 +55,10 @@ Le paramètre **`portTICK_PERIOD_MS`** dans FreeRTOS est une constante qui repr�
      ```
 
 ## 1.2 Sémaphores pour la synchronisation
+3. Après programmation des sémaphores on observe :
+```
+Avant sémaphore taskGive
+Avant sémaphore taskTake
+Après sémaphore taskGive
+Après sémaphore taskTake
+``` 

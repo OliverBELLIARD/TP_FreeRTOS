@@ -24,6 +24,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <stdlib.h>
 
 /* USER CODE END Includes */
 
@@ -34,6 +36,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define STACK_SIZE 250
+#define DELAY_1 100
 
 /* USER CODE END PD */
 
@@ -62,6 +66,18 @@ int __io_putchar(int ch) {
 	return ch;
 }
 
+void tacheLed (void * pvParameters) {
+	int compteur = 0;
+	int duree = (int) pvParameters;
+	char* s = pcTaskGetName(xTaskGetCurrentTaskHandle());
+
+	while (1) {
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		printf("Je suis la tache %s et je m'endors pour %d ms\r\n", s, duree);
+		vTaskDelay( duree / portTICK_PERIOD_MS );  // Délai de 100 ms
+		compteur++;
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -72,6 +88,8 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+	BaseType_t xReturned;
+	TaskHandle_t xHandle1 = NULL;
 
   /* USER CODE END 1 */
 
@@ -95,6 +113,27 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+	/* Create the task, storing the handle. */
+	xReturned = xTaskCreate(
+			tacheLed, /* Function that implements the task. */
+			"Task1", /* Text name for the task. */
+			STACK_SIZE, /* Stack size in words, not bytes. */
+			(void *) DELAY_1, /* Parameter passed into the task. */
+			tskIDLE_PRIORITY,/* Priority at which the task is created. */
+			&xHandle1 ); /* Used to pass out the created task's handle. */
+
+	/* Vérification si la tâche a été créée avec succès */
+	if (xReturned == pdPASS) {
+	    /* Si la tâche est créée avec succès, démarrer le scheduler */
+		printf("Tâche crée avec succès\r\n");
+	} else {
+	    /* En cas d'échec de création, gestion d'erreur */
+	    printf("Erreur: Échec de la création de la tâche\r\n");
+	    /* Ici, vous pouvez ajouter d'autres actions d'erreur, comme une LED d'erreur */
+	    Error_Handler();
+	}
+
+	vTaskStartScheduler();
 
   /* USER CODE END 2 */
 

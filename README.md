@@ -65,24 +65,25 @@ Après avoir donné le sémaphore taskGive
 
 4. Pour la gestion d'erreur, nous avons procédés de la façon suivante :
 ```c
-if(task_sync != NULL)
-{
-  printf("Avant avoir pris le sémaphore taskTake\r\n");
-  if(xSemaphoreTake(task_sync, (TickType_t) SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdTRUE)
-  {
-    /* We were able to obtain the semaphore and can now access the
-          shared resource. */
-    printf("Après avoir pris le sémaphore taskTake\r\n");
-    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    vTaskDelay((TickType_t) duree / portTICK_PERIOD_MS);
-  }
-  else
-  {
-    /* We could not obtain the semaphore and can therefore not access
-          the shared resource safely. */
-    printf("taskTake n'a pas pu prendre le semaphore après %.3f\r\n", (float)SEMAPHORE_RETRY_TIME);
-    Error_Handler();
-  }
+void taskTake(void *pvParameters) {
+    while (1) {
+        if (task_sync != NULL) {
+            printf("Avant de prendre le sémaphore taskTake\r\n");
+
+            // Essayer de prendre le sémaphore avec un délai maximum de 1 seconde
+            if (xSemaphoreTake(task_sync, SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdTRUE) {
+                printf("Après avoir pris le sémaphore taskTake\r\n");
+
+                // Basculer la LED pour indiquer l'acquisition du sémaphore
+                HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+                vTaskDelay(DELAY_1 / portTICK_PERIOD_MS);
+            } else {
+                // Gestion d'erreur si le sémaphore n'est pas acquis dans le délai spécifié
+                printf("taskTake n'a pas pu prendre le sémaphore après %.3f ms. Resetting...\r\n", (float)SEMAPHORE_RETRY_TIME);
+                NVIC_SystemReset(); // Réinitialiser le microcontrôleur
+            }
+        }
+    }
 }
 ```
 Le sémaphore n'étant pas emprunté par d'autres tâches pour l'instant, nous observons pas encore l'erreur.
@@ -104,3 +105,14 @@ Avant avoir pris le sémaphore taskTake
 Avant avoir pris le sémaphore taskGive                                          
 taskTake n'a pas pu prendre le semaphore après 1000.000 ms
 ```
+
+### Explications du procédé
+1. **Délai variable dans `taskGive`** : `taskGive` commence avec un délai de 100 ms et augmente de 100 ms à chaque cycle, ce qui permet de valider la gestion d'erreur dans `taskTake`.
+2. **Gestion d'erreur avec `NVIC_SystemReset`** : Si `taskTake` ne peut pas obtenir le sémaphore dans une seconde, le microcontrôleur se réinitialise.
+3. **Priorités différentes** : En assignant une priorité plus élevée à `taskTake`, cette tâche devrait préempter `taskGive` si elle est en attente du sémaphore, assurant une acquisition plus rapide en fonction de la disponibilité du sémaphore.
+
+### Observation des priorités
+Changer les priorités influence la fréquence des messages d'affichage. Avec `taskTake` ayant une priorité plus élevée :
+- `taskTake` aura la priorité pour s'exécuter dès que le sémaphore est disponible, même si `taskGive` souhaite aussi s'exécuter.
+- Si `taskGive` a une priorité plus élevée, il pourrait retarder l'exécution de `taskTake`, ce qui affectera la prise du sémaphore et potentiellement déclencher le reset dû au délai.
+

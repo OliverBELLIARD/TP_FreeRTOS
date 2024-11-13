@@ -90,20 +90,102 @@ Le sémaphore n'étant pas emprunté par d'autres tâches pour l'instant, nous o
 
 5. Avec taskGive qui a une priorité supérieure à taskTake on a le message suivant :
 ```
-Tâche crée avec succès                                                          
-Tâche crée avec succès                                                          
-Avant avoir pris le sémaphore taskGive                                          
-Avant avoir pris le sémaphore taskTake                                          
-taskGive n'a pas pu prendre le semaphore après 1000.000 ms
+Tâche crée avec succès
+Tâche crée avec succès
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Après avoir pris le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Avant de prendre le sémaphore taskTake
+taskTake n'a pas pu prendre le sémaphore après 1000.000 ms. Resetting...
+
 ```
   
 6. En inversant les priorités on observe le comportement suivant :
 ```
-Tâche crée avec succès                                                          
-Tâche crée avec succès                                                          
-Avant avoir pris le sémaphore taskTake                                          
-Avant avoir pris le sémaphore taskGive                                          
-taskTake n'a pas pu prendre le semaphore après 1000.000 ms
+Tâche crée avec succès
+Tâche crée avec succès
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+Avant de donner le sémaphore taskGive
+Après avoir pris le sémaphore taskTake
+Après avoir donné le sémaphore taskGive
+Avant de prendre le sémaphore taskTake
+taskTake n'a pas pu prendre le sémaphore après 1000.000 ms. Resetting...
 ```
 
 ### Explications du procédé
@@ -116,3 +198,11 @@ Changer les priorités influence la fréquence des messages d'affichage. Avec `t
 - `taskTake` aura la priorité pour s'exécuter dès que le sémaphore est disponible, même si `taskGive` souhaite aussi s'exécuter.
 - Si `taskGive` a une priorité plus élevée, il pourrait retarder l'exécution de `taskTake`, ce qui affectera la prise du sémaphore et potentiellement déclencher le reset dû au délai.
 
+## 1.3 Notification
+
+### Explications sur les modifications
+1. **Notifications de tâche** : `taskGive` utilise `xTaskNotifyGive` pour envoyer une notification à `taskTake`, ce qui remplace le sémaphore.
+2. **Réception de notification dans `taskTake`** : `taskTake` utilise `ulTaskNotifyTake` pour attendre une notification. Le délai est de 1 seconde, et un reset est déclenché en cas d'échec.
+3. **Passage du handle de `taskTake`** : `taskGive` reçoit le handle de `taskTake` comme paramètre, lui permettant d’envoyer les notifications directement.
+
+Cette version conserve le même comportement que l'implémentation avec sémaphore mais utilise des notifications, ce qui est plus efficace et mieux adapté pour une synchronisation simple entre deux tâches en FreeRTOS.

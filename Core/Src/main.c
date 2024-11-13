@@ -50,7 +50,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-SemaphoreHandle_t task_sync;
+TaskHandle_t xHandle1;
+TaskHandle_t xHandle2;
 
 /* USER CODE END PV */
 
@@ -107,41 +108,41 @@ void tacheLed (void * pvParameters) {
  */
 void taskGive(void *pvParameters) {
     static int delay_ms = 100; // Début du délai à 100 ms
+    TaskHandle_t taskTakeHandle = (TaskHandle_t) pvParameters; // Récupère le handle de taskTake
 
     while (1) {
-        if (task_sync != NULL) {
-            printf("Avant de donner le sémaphore taskGive\r\n");
+        printf("Avant de notifier taskTake\r\n");
 
-            // Donner le sémaphore pour permettre à taskTake de l'acquérir
-            xSemaphoreGive(task_sync);
-            printf("Après avoir donné le sémaphore taskGive\r\n");
+        // Envoyer une notification à taskTake
+        xTaskNotifyGive(taskTakeHandle);
+        printf("Après avoir notifié taskTake\r\n");
 
-            // Attendre le délai actuel avant de donner à nouveau
-            vTaskDelay(delay_ms / portTICK_PERIOD_MS);
+        // Attendre le délai actuel avant d'envoyer une nouvelle notification
+        vTaskDelay(delay_ms / portTICK_PERIOD_MS);
 
-            // Augmenter le délai de 100 ms à chaque itération
-            delay_ms += 100;
-        }
+        // Augmenter le délai de 100 ms à chaque itération
+        delay_ms += 100;
     }
 }
 
 void taskTake(void *pvParameters) {
     while (1) {
-        if (task_sync != NULL) {
-            printf("Avant de prendre le sémaphore taskTake\r\n");
+        printf("Avant de recevoir la notification dans taskTake\r\n");
 
-            // Essayer de prendre le sémaphore avec un délai maximum de 1 seconde
-            if (xSemaphoreTake(task_sync, SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdTRUE) {
-                printf("Après avoir pris le sémaphore taskTake\r\n");
+        // Attendre une notification avec un délai maximum de 1 seconde
+        if (ulTaskNotifyTake(pdTRUE, SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) > 0)
+        {
+            printf("Après avoir reçu la notification dans taskTake\r\n");
 
-                // Basculer la LED pour indiquer l'acquisition du sémaphore
-                HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-                vTaskDelay(DELAY_1 / portTICK_PERIOD_MS);
-            } else {
-                // Gestion d'erreur si le sémaphore n'est pas acquis dans le délai spécifié
-                printf("taskTake n'a pas pu prendre le sémaphore après %.3f ms. Resetting...\r\n", (float)SEMAPHORE_RETRY_TIME);
-                NVIC_SystemReset(); // Réinitialiser le microcontrôleur
-            }
+            // Basculer la LED pour indiquer la réception de la notification
+            HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+            vTaskDelay(DELAY_1 / portTICK_PERIOD_MS);
+        }
+        else
+        {
+            // Gestion d'erreur si la notification n'est pas reçue dans le délai spécifié
+            printf("taskTake n'a pas reçu la notification après %.3f ms. Resetting...\r\n", (float)SEMAPHORE_RETRY_TIME);
+            NVIC_SystemReset(); // Réinitialiser le microcontrôleur
         }
     }
 }
@@ -157,8 +158,6 @@ int main(void)
 
 	/* USER CODE BEGIN 1 */
 	BaseType_t xReturned;
-	TaskHandle_t xHandle1 = NULL;
-	TaskHandle_t xHandle2 = NULL;
 
 	/* USER CODE END 1 */
 
@@ -197,26 +196,24 @@ int main(void)
 	 */
 
 	/* 1.2 */
-	task_sync = xSemaphoreCreateBinary();
-
-	// Créer taskGive avec une priorité inférieure
-	xReturned = xTaskCreate(
-		taskGive,
-		"taskGive",
-		STACK_SIZE,
-		NULL,
-		tskIDLE_PRIORITY, // Priorité inférieure
-		&xHandle1);
-	errHandler_xTaskCreate(xReturned);
-
-	// Créer taskTake avec une priorité plus élevée
+	// Créer taskTake en premier pour obtenir son handle
 	xReturned = xTaskCreate(
 		taskTake,
 		"taskTake",
 		STACK_SIZE,
 		NULL,
-		1U, // Priorité plus élevée
+		tskIDLE_PRIORITY, // Priorité plus élevée
 		&xHandle2);
+	errHandler_xTaskCreate(xReturned);
+
+	// Créer taskGive en passant le handle de taskTake comme paramètre
+	xReturned = xTaskCreate(
+		taskGive,
+		"taskGive",
+		STACK_SIZE,
+		(void *) xHandle2, // Passer le handle de taskTake en paramètre
+		1U, // Priorité inférieure
+		&xHandle1);
 	errHandler_xTaskCreate(xReturned);
 
 	vTaskStartScheduler();

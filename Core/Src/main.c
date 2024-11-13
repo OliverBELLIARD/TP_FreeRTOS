@@ -38,6 +38,7 @@
 /* USER CODE BEGIN PD */
 #define STACK_SIZE 250
 #define DELAY_1 100
+#define SEMAPHORE_RETRY_TIME 1000
 
 /* USER CODE END PD */
 
@@ -100,14 +101,37 @@ void tacheLed (void * pvParameters) {
 	}
 }
 
+/**
+ * @note
+ * source: https://www.freertos.org/Documentation/02-Kernel/04-API-references/10-Semaphore-and-Mutexes/12-xSemaphoreTake
+ */
 void taskGive (void * pvParameters) {
 	int duree = (int) pvParameters;
 
 	while (1) {
-		printf("Avant sémaphore taskGive\r\n");
-		xSemaphoreTake(task_sync, duree);
-		printf("Après sémaphore taskGive\r\n");
-		vTaskDelay( duree / portTICK_PERIOD_MS );
+		if(task_sync != NULL)
+		{
+			printf("Avant avoir pris le sémaphore taskGive\r\n");
+			if(xSemaphoreTake(task_sync, (TickType_t) SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdTRUE)
+			{
+				/* We were able to obtain the semaphore and can now access the shared resource. */
+				printf("Après avoir pris le sémaphore taskGive\r\n");
+				HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+				vTaskDelay((TickType_t) duree / portTICK_PERIOD_MS);
+
+				/* We have finished accessing the shared resource. Release the semaphore. */
+				printf("Avant avoir donné le sémaphore taskGive\r\n");
+				xSemaphoreGive(task_sync);
+				printf("Après avoir donné le sémaphore taskGive\r\n");
+			}
+			else
+			{
+				/* We could not obtain the semaphore and can therefore not access
+				 * the shared resource safely. */
+				printf("taskGive n'a pas pu prendre le semaphore après %.3f ms\r\n", (float)SEMAPHORE_RETRY_TIME);
+				Error_Handler();
+			}
+		}
 	}
 }
 
@@ -115,10 +139,24 @@ void taskTake (void * pvParameters) {
 	int duree = (int) pvParameters;
 
 	while (1) {
-		printf("Avant sémaphore taskTake\r\n");
-		xSemaphoreTake(task_sync, duree);
-		printf("Après sémaphore taskTake\r\n");
-		vTaskDelay( duree / portTICK_PERIOD_MS );
+		if(task_sync != NULL)
+		{
+			printf("Avant avoir pris le sémaphore taskTake\r\n");
+			if(xSemaphoreTake(task_sync, (TickType_t) SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdTRUE)
+			{
+				/* We were able to obtain the semaphore and can now access the shared resource. */
+				printf("Après avoir pris le sémaphore taskTake\r\n");
+				HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+				vTaskDelay((TickType_t) duree / portTICK_PERIOD_MS);
+			}
+			else
+			{
+				/* We could not obtain the semaphore and can therefore not access
+				 * the shared resource safely. */
+				printf("taskTake n'a pas pu prendre le semaphore après %.3f ms\r\n", (float)SEMAPHORE_RETRY_TIME);
+				Error_Handler();
+			}
+		}
 	}
 }
 
@@ -170,7 +208,7 @@ int main(void)
 			&xHandle1); // Used to pass out the created task's handle.
 
 	errHandler_xTaskCreate(xReturned);
-	*/
+	 */
 
 	/* 1.2 */
 	task_sync = xSemaphoreCreateBinary();
@@ -180,7 +218,7 @@ int main(void)
 			"taskGive", // Text name for the task.
 			STACK_SIZE, // Stack size in words, not bytes.
 			(void *) DELAY_1, // Parameter passed into the task.
-			(UBaseType_t) 1U,// Priority at which the task is created.
+			(UBaseType_t) tskIDLE_PRIORITY,// Priority at which the task is created.
 			&xHandle1); // Used to pass out the created task's handle.
 
 	errHandler_xTaskCreate(xReturned);
@@ -190,7 +228,7 @@ int main(void)
 			"taskTake", // Text name for the task.
 			STACK_SIZE, // Stack size in words, not bytes.
 			(void *) DELAY_1, // Parameter passed into the task.
-			tskIDLE_PRIORITY,// Priority at which the task is created.
+			1U,// Priority at which the task is created.
 			&xHandle2); // Used to pass out the created task's handle.
 
 	errHandler_xTaskCreate(xReturned);

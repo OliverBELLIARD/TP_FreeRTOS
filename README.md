@@ -57,8 +57,50 @@ Le paramètre **`portTICK_PERIOD_MS`** dans FreeRTOS est une constante qui repr�
 ## 1.2 Sémaphores pour la synchronisation
 3. Après programmation des sémaphores on observe :
 ```
-Avant sémaphore taskGive
-Avant sémaphore taskTake
-Après sémaphore taskGive
-Après sémaphore taskTake
+Avant avoir pris le sémaphore taskTake
+Après avoir pris le sémaphore taskTake
+Avant avoir donné le sémaphore taskGive
+Après avoir donné le sémaphore taskGive
 ``` 
+
+4. Pour la gestion d'erreur, nous avons procédés de la façon suivante :
+```c
+if(task_sync != NULL)
+{
+  printf("Avant avoir pris le sémaphore taskTake\r\n");
+  if(xSemaphoreTake(task_sync, (TickType_t) SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdTRUE)
+  {
+    /* We were able to obtain the semaphore and can now access the
+          shared resource. */
+    printf("Après avoir pris le sémaphore taskTake\r\n");
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+    vTaskDelay((TickType_t) duree / portTICK_PERIOD_MS);
+  }
+  else
+  {
+    /* We could not obtain the semaphore and can therefore not access
+          the shared resource safely. */
+    printf("taskTake n'a pas pu prendre le semaphore après %.3f\r\n", (float)SEMAPHORE_RETRY_TIME);
+    Error_Handler();
+  }
+}
+```
+Le sémaphore n'étant pas emprunté par d'autres tâches pour l'instant, nous observons pas encore l'erreur.
+
+5. Avec taskGive qui a une priorité supérieure à taskTake on a le message suivant :
+```
+Tâche crée avec succès                                                          
+Tâche crée avec succès                                                          
+Avant avoir pris le sémaphore taskGive                                          
+Avant avoir pris le sémaphore taskTake                                          
+taskGive n'a pas pu prendre le semaphore après 1000.000 ms
+```
+  
+6. En inversant les priorités on observe le comportement suivant :
+```
+Tâche crée avec succès                                                          
+Tâche crée avec succès                                                          
+Avant avoir pris le sémaphore taskTake                                          
+Avant avoir pris le sémaphore taskGive                                          
+taskTake n'a pas pu prendre le semaphore après 1000.000 ms
+```

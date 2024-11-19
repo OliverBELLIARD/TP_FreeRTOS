@@ -207,4 +207,78 @@ Changer les priorités influence la fréquence des messages d'affichage. Avec `t
 Cette version conserve le même comportement que l'implémentation avec sémaphore mais utilise des notifications, ce qui est plus efficace et mieux adapté pour une synchronisation simple entre deux tâches en FreeRTOS.
 
 ## 1.4 Queues
-8. Modifiez TaskGive pour envoyer dans une queue la valeur du timer. Modifiez TaskTake pour réceptionner et aﬃcher cette valeur.
+8. Modifiez TaskGive pour envoyer dans une queue la valeur du timer. Modifiez TaskTake pour réceptionner et aﬃcher cette valeur.  
+  
+Après modifications observe :
+```
+Tâche crée avec succès                                                          
+Tâche crée avec succès                                                          
+Avant d'envoyer dans la queue : 100 ms                                          
+Valeur envoyée dans la queue : 100 ms                                           
+En attente d'une valeur dans la queue...                                        
+Valeur reçue de la queue : 100 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 200 ms                                          
+Valeur envoyée dans la queue : 200 ms                                           
+Valeur reçue de la queue : 200 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 300 ms                                          
+Valeur envoyée dans la queue : 300 ms                                           
+Valeur reçue de la queue : 300 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 400 ms                                          
+Valeur envoyée dans la queue : 400 ms                                           
+Valeur reçue de la queue : 400 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 500 ms                                          
+Valeur envoyée dans la queue : 500 ms                                           
+Valeur reçue de la queue : 500 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 600 ms                                          
+Valeur envoyée dans la queue : 600 ms                                           
+Valeur reçue de la queue : 600 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 700 ms                                          
+Valeur envoyée dans la queue : 700 ms                                           
+Valeur reçue de la queue : 700 ms
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 800 ms                                          
+Valeur envoyée dans la queue : 800 ms                                           
+Valeur reçue de la queue : 800 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 900 ms                                          
+Valeur envoyée dans la queue : 900 ms                                           
+Valeur reçue de la queue : 900 ms                                               
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 1000 ms                                         
+Valeur envoyée dans la queue : 1000 ms                                          
+Valeur reçue de la queue : 1000 ms                                              
+En attente d'une valeur dans la queue...                                        
+Avant d'envoyer dans la queue : 1100 ms                                         
+Valeur envoyée dans la queue : 1100 ms                                          
+Valeur reçue de la queue : 1100 ms                                              
+En attente d'une valeur dans la queue...                                        
+Échec de réception dans la queue. Resetting...
+```
+
+**Queue :**
+    Une queue nommée xQueue est créée dans main à l’aide de xQueueCreate.
+    La queue est configurée pour stocker des entiers (int), avec une longueur maximale de 5 éléments.
+
+**`taskGive` :**
+    Utilise xQueueSend pour envoyer la valeur de delay_ms dans la queue.
+    Vérifie si l’envoi a réussi et affiche un message en conséquence.
+
+**`taskTake` :**
+    Utilise xQueueReceive pour recevoir une valeur de la queue.
+    Si une valeur est reçue, elle est affichée dans la console, et la LED bascule.
+    Si le délai d’attente expire, le microcontrôleur est réinitialisé.
+
+**Gestion des erreurs :**
+    Si la queue ne peut pas être créée, le programme réinitialise le système.
+
+**Points supplémentaires :**
+    Cette implémentation assure une communication non bloquante entre les tâches.
+    Vous pouvez ajuster la taille de la queue si le programme doit gérer plus de messages simultanément.
+
+## 1.5 Réentrance et exclusion mutuelle

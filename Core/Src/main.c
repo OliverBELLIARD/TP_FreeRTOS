@@ -26,6 +26,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <stdlib.h>
+#include "queue.h"  // Inclure la bibliothèque pour les queues
 
 /* USER CODE END Includes */
 
@@ -40,6 +41,9 @@
 #define DELAY_1 100
 #define SEMAPHORE_RETRY_TIME 1000
 
+/* Définir la taille de la queue */
+#define QUEUE_LENGTH 10
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,6 +56,9 @@
 /* USER CODE BEGIN PV */
 TaskHandle_t xHandle1;
 TaskHandle_t xHandle2;
+
+/* Variable globale pour la queue */
+QueueHandle_t xQueue;
 
 /* USER CODE END PV */
 
@@ -102,22 +109,21 @@ void tacheLed (void * pvParameters) {
 	}
 }
 
-/**
- * @note
- * source: https://www.freertos.org/Documentation/02-Kernel/04-API-references/10-Semaphore-and-Mutexes/12-xSemaphoreTake
- */
+/* Fonction TaskGive : envoie la valeur du timer dans une queue */
 void taskGive(void *pvParameters) {
     static int delay_ms = 100; // Début du délai à 100 ms
-    TaskHandle_t taskTakeHandle = (TaskHandle_t) pvParameters; // Récupère le handle de taskTake
 
     while (1) {
-        printf("Avant de notifier taskTake\r\n");
+        printf("Avant d'envoyer dans la queue : %d ms\r\n", delay_ms);
 
-        // Envoyer une notification à taskTake
-        xTaskNotifyGive(taskTakeHandle);
-        printf("Après avoir notifié taskTake\r\n");
+        // Envoyer la valeur de delay_ms dans la queue
+        if (xQueueSend(xQueue, &delay_ms, 0) == pdPASS) {
+            printf("Valeur envoyée dans la queue : %d ms\r\n", delay_ms);
+        } else {
+            printf("Échec de l'envoi dans la queue (Queue pleine)\r\n");
+        }
 
-        // Attendre le délai actuel avant d'envoyer une nouvelle notification
+        // Attendre le délai actuel avant d'envoyer une nouvelle valeur
         vTaskDelay(delay_ms / portTICK_PERIOD_MS);
 
         // Augmenter le délai de 100 ms à chaque itération
@@ -125,23 +131,21 @@ void taskGive(void *pvParameters) {
     }
 }
 
+/* Fonction TaskTake : reçoit et affiche la valeur de la queue */
 void taskTake(void *pvParameters) {
+    int receivedValue;
+
     while (1) {
-        printf("Avant de recevoir la notification dans taskTake\r\n");
+        printf("En attente d'une valeur dans la queue...\r\n");
 
-        // Attendre une notification avec un délai maximum de 1 seconde
-        if (ulTaskNotifyTake(pdTRUE, SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) > 0)
-        {
-            printf("Après avoir reçu la notification dans taskTake\r\n");
+        // Recevoir une valeur de la queue avec un délai maximum
+        if (xQueueReceive(xQueue, &receivedValue, SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdPASS) {
+            printf("Valeur reçue de la queue : %d ms\r\n", receivedValue);
 
-            // Basculer la LED pour indiquer la réception de la notification
+            // Basculer la LED pour indiquer la réception
             HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-            vTaskDelay(DELAY_1 / portTICK_PERIOD_MS);
-        }
-        else
-        {
-            // Gestion d'erreur si la notification n'est pas reçue dans le délai spécifié
-            printf("taskTake n'a pas reçu la notification après %.3f ms. Resetting...\r\n", (float)SEMAPHORE_RETRY_TIME);
+        } else {
+            printf("Échec de réception dans la queue. Resetting...\r\n");
             NVIC_SystemReset(); // Réinitialiser le microcontrôleur
         }
     }
@@ -194,6 +198,14 @@ int main(void)
 
 	errHandler_xTaskCreate(xReturned);
 	 */
+
+	/* 1.4 */
+	// Créer la queue
+	xQueue = xQueueCreate(QUEUE_LENGTH, sizeof(TickType_t));
+	if (xQueue == NULL) {
+		printf("Échec de la création de la queue\r\n");
+		Error_Handler();
+	}
 
 	/* 1.2 */
 	// Créer taskTake en premier pour obtenir son handle

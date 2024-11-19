@@ -37,12 +37,13 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define STACK_SIZE 250
-#define DELAY_1 100
-#define SEMAPHORE_RETRY_TIME 1000
+#define STACK_SIZE 256
 
-/* Définir la taille de la queue */
-#define QUEUE_LENGTH 10
+#define TASK1_PRIORITY 1
+#define TASK2_PRIORITY 2
+
+#define TASK1_DELAY 1
+#define TASK2_DELAY 2
 
 /* USER CODE END PD */
 
@@ -56,9 +57,7 @@
 /* USER CODE BEGIN PV */
 TaskHandle_t xHandle1;
 TaskHandle_t xHandle2;
-
-/* Variable globale pour la queue */
-QueueHandle_t xQueue;
+SemaphoreHandle_t xMutex;
 
 /* USER CODE END PV */
 
@@ -92,7 +91,8 @@ void errHandler_xTaskCreate(BaseType_t r)
 	} else {
 		/* Cas improbable : code d'erreur non prévu pour xTaskCreate */
 		printf("Erreur inconnue lors de la création de la tâche\r\n");
-		Error_Handler();  // Gestion d'erreur générique
+		Error_Handler();  	// Gestion d'erreur générique
+		NVIC_SystemReset(); // Réinitialiser le microcontrôleur
 	}
 }
 
@@ -109,45 +109,19 @@ void tacheLed (void * pvParameters) {
 	}
 }
 
-/* Fonction TaskGive : envoie la valeur du timer dans une queue */
-void taskGive(void *pvParameters) {
-    static int delay_ms = 100; // Début du délai à 100 ms
+void task_bug(void * pvParameters)
+{
+    int delay = (int) pvParameters;
 
-    while (1) {
-        printf("Avant d'envoyer dans la queue : %d ms\r\n", delay_ms);
-
-        // Envoyer la valeur de delay_ms dans la queue
-        if (xQueueSend(xQueue, &delay_ms, 0) == pdPASS) {
-            printf("Valeur envoyée dans la queue : %d ms\r\n", delay_ms);
-        } else {
-            printf("Échec de l'envoi dans la queue (Queue pleine)\r\n");
+    for (;;)
+    {
+        if (xSemaphoreTake(xMutex, portMAX_DELAY) == pdTRUE) {
+            printf("Je suis %s et je m'endors pour %d ticks\r\n",
+                    pcTaskGetName(NULL), delay);
+            xSemaphoreGive(xMutex); // Libérer le Mutex
         }
 
-        // Attendre le délai actuel avant d'envoyer une nouvelle valeur
-        vTaskDelay(delay_ms / portTICK_PERIOD_MS);
-
-        // Augmenter le délai de 100 ms à chaque itération
-        delay_ms += 100;
-    }
-}
-
-/* Fonction TaskTake : reçoit et affiche la valeur de la queue */
-void taskTake(void *pvParameters) {
-    int receivedValue;
-
-    while (1) {
-        printf("En attente d'une valeur dans la queue...\r\n");
-
-        // Recevoir une valeur de la queue avec un délai maximum
-        if (xQueueReceive(xQueue, &receivedValue, SEMAPHORE_RETRY_TIME / portTICK_PERIOD_MS) == pdPASS) {
-            printf("Valeur reçue de la queue : %d ms\r\n", receivedValue);
-
-            // Basculer la LED pour indiquer la réception
-            HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-        } else {
-            printf("Échec de réception dans la queue. Resetting...\r\n");
-            NVIC_SystemReset(); // Réinitialiser le microcontrôleur
-        }
+        vTaskDelay(delay);
     }
 }
 
@@ -161,7 +135,7 @@ int main(void)
 {
 
 	/* USER CODE BEGIN 1 */
-	BaseType_t xReturned;
+	BaseType_t ret;
 
 	/* USER CODE END 1 */
 
@@ -199,34 +173,22 @@ int main(void)
 	errHandler_xTaskCreate(xReturned);
 	 */
 
-	/* 1.4 */
-	// Créer la queue
-	xQueue = xQueueCreate(QUEUE_LENGTH, sizeof(TickType_t));
-	if (xQueue == NULL) {
-		printf("Échec de la création de la queue\r\n");
-		Error_Handler();
+	/* 1.2 */
+	xMutex = xSemaphoreCreateMutex();
+	if (xMutex == NULL) {
+	    printf("Erreur lors de la création du Mutex\r\n");
+	    Error_Handler();
 	}
 
-	/* 1.2 */
-	// Créer taskTake en premier pour obtenir son handle
-	xReturned = xTaskCreate(
-		taskTake,
-		"taskTake",
-		STACK_SIZE,
-		NULL,
-		tskIDLE_PRIORITY, // Priorité plus élevée
-		&xHandle2);
-	errHandler_xTaskCreate(xReturned);
+	ret = xTaskCreate(task_bug, "Tache 1", STACK_SIZE, \
+			(void *) TASK1_DELAY, TASK1_PRIORITY, NULL);
+	configASSERT(pdPASS == ret);
+	errHandler_xTaskCreate(ret);
 
-	// Créer taskGive en passant le handle de taskTake comme paramètre
-	xReturned = xTaskCreate(
-		taskGive,
-		"taskGive",
-		STACK_SIZE,
-		(void *) xHandle2, // Passer le handle de taskTake en paramètre
-		1U, // Priorité inférieure
-		&xHandle1);
-	errHandler_xTaskCreate(xReturned);
+	ret = xTaskCreate(task_bug, "Tache 2", STACK_SIZE, \
+			(void *) TASK2_DELAY, TASK2_PRIORITY, NULL);
+	configASSERT(pdPASS == ret);
+	errHandler_xTaskCreate(ret);
 
 	vTaskStartScheduler();
 

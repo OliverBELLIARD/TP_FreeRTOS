@@ -282,3 +282,89 @@ En attente d'une valeur dans la queue...
     Vous pouvez ajuster la taille de la queue si le programme doit gérer plus de messages simultanément.
 
 ## 1.5 Réentrance et exclusion mutuelle
+
+10. Observez attentivement la sortie dans la console. Expliquez d'où vient le problème.
+11. Proposez une solution en utilisant un sémaphore Mutex.
+
+### Problème dans le code actuel
+
+Le problème ici semble être lié à une **concurrence entre les tâches** (`Tache 1` et `Tache 2`) lorsqu'elles accèdent aux ressources partagées (dans ce cas, le terminal UART pour l'impression via `printf`). 
+
+Les tâches effectuent des appels à `printf`, mais `printf` n'est pas thread-safe par défaut dans ce contexte. L'accès concurrent peut entraîner des sorties désordonnées ou même des corruptions de données, car plusieurs tâches peuvent tenter d'accéder simultanément à la ressource UART. 
+
+### Solution avec un Sémaphore Mutex
+
+Pour résoudre ce problème, un **Mutex** (sémaphore mutuellement exclusif) peut être utilisé. Le Mutex garantit qu'une seule tâche à la fois accède à la ressource partagée (UART). Lorsqu'une tâche veut utiliser `printf`, elle doit acquérir le Mutex avant d'y accéder, et le libérer immédiatement après.
+
+### Modifications du code
+
+1. Créer un Mutex global à partager entre les tâches.
+2. Modifier les tâches pour acquérir le Mutex avant l'impression et le libérer après.
+
+Voici les changements nécessaires :
+
+#### Ajout du Mutex global
+```c
+/* USER CODE BEGIN PV */
+TaskHandle_t xHandle1;
+TaskHandle_t xHandle2;
+SemaphoreHandle_t xMutex; // Déclarer le Mutex
+/* USER CODE END PV */
+```
+
+#### Initialisation du Mutex dans `main`
+Ajouter l'initialisation du Mutex juste avant la création des tâches dans la fonction `main` :
+
+```c
+/* Initialiser le Mutex */
+xMutex = xSemaphoreCreateMutex();
+if (xMutex == NULL) {
+    printf("Erreur lors de la création du Mutex\r\n");
+    Error_Handler();
+}
+```
+
+#### Modification des tâches pour utiliser le Mutex
+
+Modifier les tâches `task_bug` pour entourer `printf` par l'acquisition et la libération du Mutex :
+
+```c
+void task_bug(void * pvParameters)
+{
+    int delay = (int) pvParameters;
+
+    for (;;)
+    {
+        if (xSemaphoreTake(xMutex, portMAX_DELAY) == pdTRUE) {
+            printf("Je suis %s et je m'endors pour %d ticks\r\n", 
+                    pcTaskGetName(NULL), delay);
+            xSemaphoreGive(xMutex); // Libérer le Mutex
+        }
+
+        vTaskDelay(delay);
+    }
+}
+```
+
+#### Libération du Mutex en cas d'erreur
+S'assurer que le Mutex est libéré même si une erreur ou un blocage se produit.
+
+### Explications
+
+- **Création du Mutex** : Le Mutex est une ressource synchronisée qui permet à une tâche de "verrouiller" une section critique afin d'empêcher les autres tâches d'y accéder en même temps.
+- **xSemaphoreTake** : Une tâche "prend" le Mutex avant d'entrer dans la section critique. Ici, le temps d'attente est infini (`portMAX_DELAY`) pour garantir que la tâche attendra jusqu'à ce que le Mutex soit disponible.
+- **xSemaphoreGive** : Une fois que la tâche a terminé d'utiliser la section critique, elle "libère" le Mutex, permettant à une autre tâche d'y accéder.
+
+### Résultat attendu
+
+Avec cette solution :
+1. Les messages affichés par `printf` seront ordonnés et cohérents.
+2. Il n'y aura plus de conflit entre les tâches pour accéder à l'UART.
+3. Le programme fonctionnera de manière plus stable.
+
+### Notes supplémentaires
+
+1. Si d'autres ressources partagées sont ajoutées (par exemple, un autre périphérique ou une variable globale), le même Mutex peut être utilisé ou un Mutex dédié peut être créé.
+2. Pour des systèmes plus complexes, il est recommandé d'utiliser un sémaphore binaire ou une file (queue) pour une gestion encore plus fine.
+
+# 2 On joue avec le Shell

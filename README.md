@@ -199,10 +199,12 @@ Changer les priorités influence la fréquence des messages d'affichage. Avec `t
 - Si `taskGive` a une priorité plus élevée, il pourrait retarder l'exécution de `taskTake`, ce qui affectera la prise du sémaphore et potentiellement déclencher le reset dû au délai.
 
 ## 1.3 Notification
-
-### Explications sur les modifications
-1. **Notifications de tâche** : `taskGive` utilise `xTaskNotifyGive` pour envoyer une notification à `taskTake`, ce qui remplace le sémaphore.
-2. **Réception de notification dans `taskTake`** : `taskTake` utilise `ulTaskNotifyTake` pour attendre une notification. Le délai est de 1 seconde, et un reset est déclenché en cas d'échec.
-3. **Passage du handle de `taskTake`** : `taskGive` reçoit le handle de `taskTake` comme paramètre, lui permettant d’envoyer les notifications directement.
+7. Explications sur les modifications :
+  - **Notifications de tâche** : `taskGive` utilise `xTaskNotifyGive` pour envoyer une notification à `taskTake`, ce qui remplace le sémaphore.
+  - **Réception de notification dans `taskTake`** : `taskTake` utilise `ulTaskNotifyTake` pour attendre une notification. Le délai est de 1 seconde, et un reset est déclenché en cas d'échec.
+  - **Passage du handle de `taskTake`** : `taskGive` reçoit le handle de `taskTake` comme paramètre, lui permettant d’envoyer les notifications directement.
 
 Cette version conserve le même comportement que l'implémentation avec sémaphore mais utilise des notifications, ce qui est plus efficace et mieux adapté pour une synchronisation simple entre deux tâches en FreeRTOS.
+
+## 1.4 Queues
+8. Modifiez TaskGive pour envoyer dans une queue la valeur du timer. Modifiez TaskTake pour réceptionner et aﬃcher cette valeur.

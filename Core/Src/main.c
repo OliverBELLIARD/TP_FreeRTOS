@@ -135,7 +135,7 @@ int main(void)
 {
 
 	/* USER CODE BEGIN 1 */
-	BaseType_t ret;
+	BaseType_t xReturned;
 
 	/* USER CODE END 1 */
 
